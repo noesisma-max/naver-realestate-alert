@@ -8,15 +8,33 @@ const URL =
 
 async function run(){
 
-  const browser = await require("puppeteer").launch({
-    args:["--no-sandbox"]
+  const puppeteer = require("puppeteer")
+
+  const browser = await puppeteer.launch({
+    headless: "new",
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--no-first-run",
+      "--no-zygote",
+      "--single-process"
+    ]
   })
 
   const page = await browser.newPage()
 
-  await page.goto(URL,{waitUntil:"networkidle2"})
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  )
 
-  await page.waitForSelector(".item_inner")
+  await page.goto(URL,{
+    waitUntil:"domcontentloaded",
+    timeout:120000
+  })
+
+  await page.waitForSelector(".item_inner",{timeout:60000})
 
   const data = await page.evaluate(()=>{
 
@@ -25,9 +43,7 @@ async function run(){
     const list = []
 
     items.forEach(i=>{
-      list.push({
-        title:i.innerText
-      })
+      list.push(i.innerText)
     })
 
     return list
@@ -35,7 +51,7 @@ async function run(){
 
   await browser.close()
 
-  send(JSON.stringify(data,null,2))
+  send(data.join("\n\n"))
 }
 
 function send(msg){
@@ -45,7 +61,7 @@ function send(msg){
 
   const post = JSON.stringify({
     chat_id:CHAT,
-    text:msg
+    text:msg.slice(0,4000)
   })
 
   const req = https.request(url,{
