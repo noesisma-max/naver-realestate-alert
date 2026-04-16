@@ -4,73 +4,81 @@ const TOKEN = process.env.TELEGRAM_TOKEN
 const CHAT = process.env.TELEGRAM_CHAT
 
 const URL =
-"https://new.land.naver.com/complexes/166198?ms=36.6206354,127.4559676,18"
+"https://new.land.naver.com/api/articles/complex/166198" +
+"?realEstateType=APT" +
+"&tradeType=B1" +
+"&tag=::::::::" +
+"&rentPriceMin=0" +
+"&rentPriceMax=900000000" +
+"&priceMin=0" +
+"&priceMax=900000000" +
+"&areaMin=0" +
+"&areaMax=900000000" +
+"&showArticle=false" +
+"&sameAddressGroup=false" +
+"&priceType=RETAIL" +
+"&page=1" +
+"&complexNo=166198" +
+"&type=list" +
+"&order=rank";
 
-async function run(){
+function run(){
 
-  const puppeteer = require("puppeteer")
+  const req = https.request(URL,{
+    method:"GET",
+    headers:{
+      "User-Agent":"Mozilla/5.0",
+      "Referer":"https://new.land.naver.com/complexes/166198",
+      "Accept":"application/json"
+    }
+  },res=>{
 
-  const browser = await puppeteer.launch({
-    headless: "new",
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--no-first-run",
-      "--no-zygote",
-      "--single-process"
-    ]
-  })
+    let data=""
 
-  const page = await browser.newPage()
+    res.on("data",chunk=>data+=chunk)
 
-  await page.setUserAgent(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-  )
+    res.on("end",()=>{
 
-  await page.goto(URL,{
-    waitUntil:"domcontentloaded",
-    timeout:120000
-  })
+      try{
 
-  await page.waitForSelector(".item_inner",{timeout:60000})
+        const json = JSON.parse(data)
 
-  const data = await page.evaluate(()=>{
+        const list = json.articleList.map(a=>
+          `${a.buildingName} ${a.floorInfo} ${a.areaName}\n${a.dealOrWarrantPrc}`
+        )
 
-    const items = document.querySelectorAll(".item_inner")
+        send(list.join("\n\n"))
 
-    const list = []
-
-    items.forEach(i=>{
-      list.push(i.innerText)
+      }catch(e){
+        send("파싱 실패\n"+data.slice(0,500))
+      }
     })
-
-    return list
   })
 
-  await browser.close()
+  req.on("error",e=>{
+    send("요청 실패: "+e.message)
+  })
 
-  send(data.join("\n\n"))
+  req.end()
 }
 
 function send(msg){
-
-  const url =
-  `https://api.telegram.org/bot${TOKEN}/sendMessage`
 
   const post = JSON.stringify({
     chat_id:CHAT,
     text:msg.slice(0,4000)
   })
 
-  const req = https.request(url,{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "Content-Length":post.length
+  const req = https.request(
+    `https://api.telegram.org/bot${TOKEN}/sendMessage`,
+    {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Content-Length":post.length
+      }
     }
-  })
+  )
 
   req.write(post)
   req.end()
